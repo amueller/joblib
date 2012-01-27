@@ -16,7 +16,8 @@ import itertools
 try:
     import cPickle as pickle
 except:
-    import pickle
+    pass
+    #import pickle
 
 # Obtain possible configuration from the environment, assuming 1 (on)
 # by default, upon 0 set to None. Should instructively fail if some non
@@ -26,7 +27,8 @@ if multiprocessing:
     try:
         import multiprocessing
     except ImportError:
-        multiprocessing = None
+        pass
+        #multiprocessing = None
 
 from .format_stack import format_exc, format_outer_frames
 from .logger import Logger, short_format_time
@@ -142,152 +144,17 @@ class CallBack(object):
             self.parallel.dispatch_next()
 
 
-###############################################################################
-class Parallel(Logger):
-    ''' Helper class for readable parallel mapping.
-
-        Parameters
-        -----------
-        n_jobs: int
-            The number of jobs to use for the computation. If -1 all CPUs
-            are used. If 1 is given, no parallel computing code is used
-            at all, which is useful for debuging. For n_jobs below -1,
-            (n_cpus + 1 - n_jobs) are used. Thus for n_jobs = -2, all
-            CPUs but one are used.
-        verbose: int, optional
-            The verbosity level: if non zero, progress messages are
-            printed. Above 50, the output is sent to stdout.
-            The frequency of the messages increases with the verbosity level.
-            If it more than 10, all iterations are reported.
-        pre_dispatch: {'all', integer, or expression, as in '3*n_jobs'}
-            The amount of jobs to be pre-dispatched. Default is 'all',
-            but it may be memory consuming, for instance if each job
-            involves a lot of a data.
-
-        Notes
-        -----
-
-        This object uses the multiprocessing module to compute in
-        parallel the application of a function to many different
-        arguments. The main functionality it brings in addition to
-        using the raw multiprocessing API are (see examples for details):
-
-            * More readable code, in particular since it avoids
-              constructing list of arguments.
-
-            * Easier debuging:
-                - informative tracebacks even when the error happens on
-                  the client side
-                - using 'n_jobs=1' enables to turn off parallel computing
-                  for debuging without changing the codepath
-                - early capture of pickling errors
-
-            * An optional progress meter.
-
-            * Interruption of multiprocesses jobs with 'Ctrl-C'
-
-        Examples
-        --------
-
-        A simple example:
-
-        >>> from math import sqrt
-        >>> from joblib import Parallel, delayed
-        >>> Parallel(n_jobs=1)(delayed(sqrt)(i**2) for i in range(10))
-        [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
-
-        Reshaping the output when the function has several return
-        values:
-
-        >>> from math import modf
-        >>> from joblib import Parallel, delayed
-        >>> r = Parallel(n_jobs=1)(delayed(modf)(i/2.) for i in range(10))
-        >>> res, i = zip(*r)
-        >>> res
-        (0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5)
-        >>> i
-        (0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0)
-
-        The progress meter: the higher the value of `verbose`, the more
-        messages::
-
-            >>> from time import sleep
-            >>> from joblib import Parallel, delayed
-            >>> r = Parallel(n_jobs=2, verbose=5)(delayed(sleep)(.1) for _ in range(10)) #doctest: +SKIP
-            [Parallel(n_jobs=2)]: Done   1 out of  10 | elapsed:    0.1s remaining:    0.9s
-            [Parallel(n_jobs=2)]: Done   3 out of  10 | elapsed:    0.2s remaining:    0.5s
-            [Parallel(n_jobs=2)]: Done   6 out of  10 | elapsed:    0.3s remaining:    0.2s
-            [Parallel(n_jobs=2)]: Done   9 out of  10 | elapsed:    0.5s remaining:    0.1s
-            [Parallel(n_jobs=2)]: Done  10 out of  10 | elapsed:    0.5s finished
-
-        Traceback example, note how the line of the error is indicated
-        as well as the values of the parameter passed to the function that
-        triggered the exception, even though the traceback happens in the
-        child process::
-
-         >>> from string import atoi
-         >>> from joblib import Parallel, delayed
-         >>> Parallel(n_jobs=2)(delayed(atoi)(n) for n in ('1', '300', 30)) #doctest: +SKIP
-         #...
-         ---------------------------------------------------------------------------
-         Sub-process traceback:
-         ---------------------------------------------------------------------------
-         TypeError                                          Fri Jul  2 20:32:05 2010
-         PID: 4151                                     Python 2.6.5: /usr/bin/python
-         ...........................................................................
-         /usr/lib/python2.6/string.pyc in atoi(s=30, base=10)
-             398     is chosen from the leading characters of s, 0 for octal, 0x or
-             399     0X for hexadecimal.  If base is 16, a preceding 0x or 0X is
-             400     accepted.
-             401
-             402     """
-         --> 403     return _int(s, base)
-             404
-             405
-             406 # Convert string to long integer
-             407 def atol(s, base=10):
-
-         TypeError: int() can't convert non-string with explicit base
-         ___________________________________________________________________________
-
-        Using pre_dispatch in a producer/consumer situation, where the
-        data is generated on the fly. Note how the producer is first
-        called a 3 times before the parallel loop is initiated, and then
-        called to generate new data on the fly. In this case the total
-        number of iterations cannot be reported in the progress messages::
-
-         >>> from math import sqrt
-         >>> from joblib import Parallel, delayed
-
-         >>> def producer():
-         ...     for i in range(6):
-         ...         print 'Produced %s' % i
-         ...         yield i
-
-         >>> out = Parallel(n_jobs=2, verbose=100, pre_dispatch='1.5*n_jobs')(
-         ...                         delayed(sqrt)(i) for i in producer()) #doctest: +SKIP
-         Produced 0
-         Produced 1
-         Produced 2
-         [Parallel(n_jobs=2)]: Done   1 jobs       | elapsed:    0.0s
-         Produced 3
-         [Parallel(n_jobs=2)]: Done   2 jobs       | elapsed:    0.0s
-         Produced 4
-         [Parallel(n_jobs=2)]: Done   3 jobs       | elapsed:    0.0s
-         Produced 5
-         [Parallel(n_jobs=2)]: Done   4 jobs       | elapsed:    0.0s
-         [Parallel(n_jobs=2)]: Done   5 out of   6 | elapsed:    0.0s remaining:    0.0s
-         [Parallel(n_jobs=2)]: Done   6 out of   6 | elapsed:    0.0s finished
-    '''
+class MultiProcessingDispatcher(object):
     def __init__(self, n_jobs=None, verbose=0, pre_dispatch='all'):
         self.verbose = verbose
         self.n_jobs = n_jobs
         self.pre_dispatch = pre_dispatch
+
         self._pool = None
-        # Not starting the pool in the __init__ is a design decision, to be
-        # able to close it ASAP, and not burden the user with closing it.
         self._output = None
         self._jobs = list()
+        # Not starting the pool in the __init__ is a design decision, to be
+        # able to close it ASAP, and not burden the user with closing it.
 
     def dispatch(self, func, args, kwargs):
         """ Queue the function for computing, with or without multiprocessing
@@ -427,9 +294,7 @@ Sub-process traceback:
                     raise exception_type(report)
                 raise exception
 
-    def __call__(self, iterable):
-        if self._jobs:
-            raise ValueError('This Parallel instance is already running')
+    def run(self, iterable):
         n_jobs = self.n_jobs
         if n_jobs < 0 and multiprocessing is not None:
             n_jobs = max(multiprocessing.cpu_count() + 1 + n_jobs, 1)
@@ -492,3 +357,163 @@ Sub-process traceback:
 
     def __repr__(self):
         return '%s(n_jobs=%s)' % (self.__class__.__name__, self.n_jobs)
+
+
+###############################################################################
+class Parallel(Logger):
+    ''' Helper class for readable parallel mapping.
+
+        Parameters
+        -----------
+        n_jobs: int
+            The number of jobs to use for the computation. If -1 all CPUs
+            are used. If 1 is given, no parallel computing code is used
+            at all, which is useful for debuging. For n_jobs below -1,
+            (n_cpus + 1 - n_jobs) are used. Thus for n_jobs = -2, all
+            CPUs but one are used.
+        verbose: int, optional
+            The verbosity level: if non zero, progress messages are
+            printed. Above 50, the output is sent to stdout.
+            The frequency of the messages increases with the verbosity level.
+            If it more than 10, all iterations are reported.
+        pre_dispatch: {'all', integer, or expression, as in '3*n_jobs'}
+            The amount of jobs to be pre-dispatched. Default is 'all',
+            but it may be memory consuming, for instance if each job
+            involves a lot of a data.
+
+        Notes
+        -----
+
+        This object uses the multiprocessing module to compute in
+        parallel the application of a function to many different
+        arguments. The main functionality it brings in addition to
+        using the raw multiprocessing API are (see examples for details):
+
+            * More readable code, in particular since it avoids
+              constructing list of arguments.
+
+            * Easier debuging:
+                - informative tracebacks even when the error happens on
+                  the client side
+                - using 'n_jobs=1' enables to turn off parallel computing
+                  for debuging without changing the codepath
+                - early capture of pickling errors
+
+            * An optional progress meter.
+
+            * Interruption of multiprocesses jobs with 'Ctrl-C'
+
+        Examples
+        --------
+
+        A simple example:
+
+        >>> from math import sqrt
+        >>> from joblib import Parallel, delayed
+        >>> Parallel(n_jobs=1)(delayed(sqrt)(i**2) for i in range(10))
+        [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+
+        Reshaping the output when the function has several return
+        values:
+
+        >>> from math import modf
+        >>> from joblib import Parallel, delayed
+        >>> r = Parallel(n_jobs=1)(delayed(modf)(i/2.) for i in range(10))
+        >>> res, i = zip(*r)
+        >>> res
+        (0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5)
+        >>> i
+        (0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0)
+
+        The progress meter: the higher the value of `verbose`, the more
+        messages::
+
+            >>> from time import sleep
+            >>> from joblib import Parallel, delayed
+            >>> r = Parallel(n_jobs=2, verbose=5)(delayed(sleep)(.1) for _ in range(10)) #doctest: +SKIP
+            [Parallel(n_jobs=2)]: Done   1 out of  10 | elapsed:    0.1s remaining:    0.9s
+            [Parallel(n_jobs=2)]: Done   3 out of  10 | elapsed:    0.2s remaining:    0.5s
+            [Parallel(n_jobs=2)]: Done   6 out of  10 | elapsed:    0.3s remaining:    0.2s
+            [Parallel(n_jobs=2)]: Done   9 out of  10 | elapsed:    0.5s remaining:    0.1s
+            [Parallel(n_jobs=2)]: Done  10 out of  10 | elapsed:    0.5s finished
+
+        Traceback example, note how the line of the error is indicated
+        as well as the values of the parameter passed to the function that
+        triggered the exception, even though the traceback happens in the
+        child process::
+
+         >>> from string import atoi
+         >>> from joblib import Parallel, delayed
+         >>> Parallel(n_jobs=2)(delayed(atoi)(n) for n in ('1', '300', 30)) #doctest: +SKIP
+         #...
+         ---------------------------------------------------------------------------
+         Sub-process traceback:
+         ---------------------------------------------------------------------------
+         TypeError                                          Fri Jul  2 20:32:05 2010
+         PID: 4151                                     Python 2.6.5: /usr/bin/python
+         ...........................................................................
+         /usr/lib/python2.6/string.pyc in atoi(s=30, base=10)
+             398     is chosen from the leading characters of s, 0 for octal, 0x or
+             399     0X for hexadecimal.  If base is 16, a preceding 0x or 0X is
+             400     accepted.
+             401
+             402     """
+         --> 403     return _int(s, base)
+             404
+             405
+             406 # Convert string to long integer
+             407 def atol(s, base=10):
+
+         TypeError: int() can't convert non-string with explicit base
+         ___________________________________________________________________________
+
+        Using pre_dispatch in a producer/consumer situation, where the
+        data is generated on the fly. Note how the producer is first
+        called a 3 times before the parallel loop is initiated, and then
+        called to generate new data on the fly. In this case the total
+        number of iterations cannot be reported in the progress messages::
+
+         >>> from math import sqrt
+         >>> from joblib import Parallel, delayed
+
+         >>> def producer():
+         ...     for i in range(6):
+         ...         print 'Produced %s' % i
+         ...         yield i
+
+         >>> out = Parallel(n_jobs=2, verbose=100, pre_dispatch='1.5*n_jobs')(
+         ...                         delayed(sqrt)(i) for i in producer()) #doctest: +SKIP
+         Produced 0
+         Produced 1
+         Produced 2
+         [Parallel(n_jobs=2)]: Done   1 jobs       | elapsed:    0.0s
+         Produced 3
+         [Parallel(n_jobs=2)]: Done   2 jobs       | elapsed:    0.0s
+         Produced 4
+         [Parallel(n_jobs=2)]: Done   3 jobs       | elapsed:    0.0s
+         Produced 5
+         [Parallel(n_jobs=2)]: Done   4 jobs       | elapsed:    0.0s
+         [Parallel(n_jobs=2)]: Done   5 out of   6 | elapsed:    0.0s remaining:    0.0s
+         [Parallel(n_jobs=2)]: Done   6 out of   6 | elapsed:    0.0s finished
+    '''
+    def __init__(self, n_jobs=None, verbose=0, pre_dispatch='all', pool=None):
+        self.verbose = verbose
+        self.n_jobs = n_jobs
+        self.pre_dispatch = pre_dispatch
+        self.pool = pool
+
+        self._pool = None
+        # Not starting the pool in the __init__ is a design decision, to be
+        # able to close it ASAP, and not burden the user with closing it.
+
+    def __call__(self, iterable):
+        if self._pool:
+            raise ValueError('This Parallel instance is already running')
+        if self.pool == None:
+            self._pool = MultiProcessingDispatcher(self.n_jobs, self.verbose, self.pre_dispatch)
+            output = self._pool.run(iterable)
+        else:
+            raise TypeError(" no pool :(")
+        return output
+
+
