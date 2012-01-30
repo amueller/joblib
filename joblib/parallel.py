@@ -496,11 +496,10 @@ class Parallel(Logger):
          [Parallel(n_jobs=2)]: Done   5 out of   6 | elapsed:    0.0s remaining:    0.0s
          [Parallel(n_jobs=2)]: Done   6 out of   6 | elapsed:    0.0s finished
     '''
-    def __init__(self, n_jobs=None, verbose=0, pre_dispatch='all', pool=None):
+    def __init__(self, n_jobs=None, verbose=0, pre_dispatch='all'):
         self.verbose = verbose
         self.n_jobs = n_jobs
         self.pre_dispatch = pre_dispatch
-        self.pool = pool
 
         self._pool = None
         # Not starting the pool in the __init__ is a design decision, to be
@@ -509,11 +508,16 @@ class Parallel(Logger):
     def __call__(self, iterable):
         if self._pool:
             raise ValueError('This Parallel instance is already running')
-        if self.pool == None:
+        if hasattr(self.n_jobs, "__call__"):
+            # is actually a mapper
+            print("custom mapper")
+            iterable = list(iterable)
+            output = self.n_jobs(lambda x: x[0](*x[1], **x[2]), iterable)
+        else:
+            #fall back to multiprocessing
+            print("multiprocessing")
             self._pool = MultiProcessingDispatcher(self.n_jobs, self.verbose, self.pre_dispatch)
             output = self._pool.run(iterable)
-        else:
-            raise TypeError(" no pool :(")
         return output
 
 
