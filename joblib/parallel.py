@@ -510,12 +510,10 @@ class Parallel(Logger):
             raise ValueError('This Parallel instance is already running')
         if hasattr(self.n_jobs, "__call__"):
             # is actually a mapper
-            print("custom mapper")
             iterable = list(iterable)
             output = self.n_jobs(lambda x: x[0](*x[1], **x[2]), iterable)
         else:
-            #fall back to multiprocessing
-            print("multiprocessing")
+            # default: multiprocessing
             self._pool = MultiProcessingDispatcher(self.n_jobs, self.verbose, self.pre_dispatch)
             output = self._pool.run(iterable)
         return output
