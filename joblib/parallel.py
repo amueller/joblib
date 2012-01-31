@@ -508,10 +508,10 @@ class Parallel(Logger):
     def __call__(self, iterable):
         if self._pool:
             raise ValueError('This Parallel instance is already running')
-        if hasattr(self.n_jobs, "__call__"):
+        if hasattr(self.n_jobs, "map_sync"):
             # is actually a mapper
             iterable = list(iterable)
-            output = self.n_jobs(lambda x: x[0](*x[1], **x[2]), iterable)
+            output = self.n_jobs.map_sync(lambda x: x[0](*x[1], **x[2]), iterable)
         else:
             # default: multiprocessing
             self._pool = MultiProcessingDispatcher(self.n_jobs, self.verbose, self.pre_dispatch)
